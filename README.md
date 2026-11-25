@@ -24,6 +24,6 @@ A menu-bar extra is almost never the frontmost app, so the public Touch Bar API 
 
 ## Build a universal app
 
-On a Mac with Xcode (or on GitHub Actions), run `./scripts/build-app.sh`. It builds arm64 and x86_64 slices and combines them with `lipo`. The workflow on `macos-15` uploads `QuotaBar-universal.zip`. Set a `DEVELOPER_ID_APPLICATION` repository secret to sign with Developer ID; otherwise CI applies an ad-hoc signature. Minimum macOS is 13.0. The app is meant to run on Intel Macs still on macOS 14, including 14.6.1.
+On a Mac with Xcode (or on GitHub Actions), run `./scripts/build-app.sh`. It builds arm64 and x86_64 slices and combines them with `lipo`. The workflow on `macos-15-intel` uploads `QuotaBar-universal.zip`. Set a `DEVELOPER_ID_APPLICATION` repository secret to sign with Developer ID; otherwise CI applies an ad-hoc signature. Minimum macOS is 13.0. The app is meant to run on Intel Macs still on macOS 14, including 14.6.1.
 
 MIT licensed.
