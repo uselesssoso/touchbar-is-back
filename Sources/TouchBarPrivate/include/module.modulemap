@@ -1,5 +1,0 @@
-module TouchBarPrivate {
-    umbrella header "TouchBarPrivate.h"
-    export *
-    link framework AppKit
-}
