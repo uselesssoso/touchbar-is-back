@@ -79,7 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSTouchBarDelegate {
 
     @objc func presentTouchBarAgain() {
         guard let bar = quotaTouchBar else { return }
-        _ = QBPresentSystemModalTouchBar(bar, 0, NSTouchBarItem.Identifier.quotaTray.rawValue)
+        _ = QBPresentSystemModalTouchBar(bar, 0, .quotaTray)
     }
 
     private func installTouchBar() {
@@ -98,9 +98,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSTouchBarDelegate {
         tray.view = NSButton(title: "◉", target: self, action: #selector(presentTouchBarAgain))
         trayItem = tray
         QBAddSystemTrayItem(tray)
-        QBSetControlStripPresence(NSTouchBarItem.Identifier.quotaTray.rawValue, true)
+        QBSetControlStripPresence(.quotaTray, true)
 
-        _ = QBPresentSystemModalTouchBar(bar, 0, NSTouchBarItem.Identifier.quotaTray.rawValue)
+        _ = QBPresentSystemModalTouchBar(bar, 0, .quotaTray)
     }
 
     private func observeAppSwitches() {
