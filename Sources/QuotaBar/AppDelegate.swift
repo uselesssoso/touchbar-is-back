@@ -47,10 +47,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSTouchBarDelegate {
         quotas.onChange = { [weak self] in
             self?.reloadStrips()
         }
-        quotas.refresh()
+        quotas.refresh(interactive: true)
         Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.quotas.refresh()
+                self?.quotas.refresh(interactive: false)
             }
         }
 
@@ -64,7 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSTouchBarDelegate {
     }
 
     @objc func refresh() {
-        quotas.refresh()
+        quotas.refresh(interactive: true)
     }
 
     @objc func quit() {

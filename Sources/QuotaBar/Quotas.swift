@@ -26,8 +26,8 @@ final class Quotas: ObservableObject {
         onChange?()
     }
 
-    func refresh() {
+    func refresh(interactive: Bool = false) {
         Task { await CodexQuota.read(into: self) }
-        Task { await CursorSessionQuota.read(into: self) }
+        Task { await CursorSessionQuota.read(into: self, allowKeychainPrompt: interactive) }
     }
 }

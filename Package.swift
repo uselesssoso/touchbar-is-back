@@ -17,10 +17,18 @@ let package = Package(
                 .linkedFramework("Foundation")
             ]
         ),
+        .target(
+            name: "OSCrypt",
+            path: "Sources/OSCrypt",
+            publicHeadersPath: "include"
+        ),
         .executableTarget(
             name: "QuotaBar",
-            dependencies: ["TouchBarPrivate"],
-            path: "Sources/QuotaBar"
+            dependencies: ["TouchBarPrivate", "OSCrypt"],
+            path: "Sources/QuotaBar",
+            linkerSettings: [
+                .linkedFramework("Security")
+            ]
         )
     ]
 )

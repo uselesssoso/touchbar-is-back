@@ -1,4 +1,6 @@
 import Foundation
+import OSCrypt
+import Security
 
 enum CodexQuota {
     static let knownBinaries = [
@@ -31,16 +33,17 @@ enum CodexQuota {
         }
 
         let request = """
-        {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"quotabar","version":"0.1"},"capabilities":{}}}
+        {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"quotabar","version":"0.1.1"},"capabilities":{}}}
         {"jsonrpc":"2.0","method":"initialized","params":{}}
         {"jsonrpc":"2.0","id":2,"method":"account/rateLimits/read","params":{}}
 
         """
         input.fileHandleForWriting.write(Data(request.utf8))
-        try? input.fileHandleForWriting.close()
+        // Keep stdin open until the rate-limit reply arrives. Closing it makes
+        // app-server exit before it writes the id:2 result.
 
-        // Bound the read so a hung app-server cannot stall the bar forever.
-        let data = await readSome(from: output.fileHandleForReading, timeout: 4)
+        let data = await readSome(from: output.fileHandleForReading, timeout: 8)
+        try? input.fileHandleForWriting.close()
         process.terminate()
 
         guard let text = String(data: data, encoding: .utf8),
@@ -138,6 +141,118 @@ enum CodexQuota {
     }
 }
 
+enum CursorSafeStorage {
+    private static let service = "Cursor Safe Storage"
+    private static let account = "Cursor Key"
+    private static let prefix = "cursor-safe-storage:v1:"
+    private static var cachedPassword: Data?
+
+    static func openToken(_ raw: String, allowPrompt: Bool) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value: String
+        if trimmed.hasPrefix("\""), trimmed.hasSuffix("\""), trimmed.count >= 2 {
+            value = String(trimmed.dropFirst().dropLast())
+        } else {
+            value = trimmed
+        }
+        if value.hasPrefix(prefix) {
+            return decrypt(value, allowPrompt: allowPrompt)
+        }
+        // Unknown sealed format: never send ciphertext as a credential.
+        if value.hasPrefix("cursor-safe-storage:") {
+            return nil
+        }
+        return value.isEmpty ? nil : value
+    }
+
+    private static func decrypt(_ sealed: String, allowPrompt: Bool) -> String? {
+        let b64 = String(sealed.dropFirst(prefix.count))
+        guard let envelope = Data(base64Encoded: b64), envelope.count > 3 else { return nil }
+        let marker = Data("v10".utf8)
+        guard envelope.starts(with: marker) else { return nil }
+        let ciphertext = envelope.dropFirst(marker.count)
+        guard let password = password(allowPrompt: allowPrompt) else { return nil }
+
+        let plain: String? = password.withUnsafeBytes { passBuf in
+            ciphertext.withUnsafeBytes { cipherBuf in
+                guard let passPtr = passBuf.baseAddress, let cipherPtr = cipherBuf.baseAddress else { return nil }
+                guard let cString = oscrypt_decrypt_v10(cipherPtr, ciphertext.count, passPtr, password.count) else {
+                    return nil
+                }
+                defer { free(cString) }
+                let text = String(cString: cString)
+                return text.isEmpty ? nil : text
+            }
+        }
+        guard let plain, looksLikeSession(plain) else { return nil }
+        return plain
+    }
+
+    private static func looksLikeSession(_ text: String) -> Bool {
+        if text.hasPrefix("cursor-safe-storage:") { return false }
+        if text.contains("eyJ") || text.contains("::") { return true }
+        return text.filter { $0 == "." }.count >= 2
+    }
+
+    private static func password(allowPrompt: Bool) -> Data? {
+        if let cachedPassword, !cachedPassword.isEmpty { return cachedPassword }
+        var query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        if allowPrompt {
+            query[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIAllow
+        } else {
+            query[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
+        }
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess, let data = result as? Data, !data.isEmpty else {
+            return nil
+        }
+        cachedPassword = data
+        return data
+    }
+}
+
+private final class CursorAPISession: NSObject, URLSessionTaskDelegate {
+    static let shared: URLSession = {
+        let delegate = CursorAPISession()
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 8
+        config.httpShouldSetCookies = false
+        config.httpCookieAcceptPolicy = .never
+        let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
+        // Keep the delegate alive for the process; URLSession holds it weakly.
+        _retained = delegate
+        return session
+    }()
+
+    private static var _retained: CursorAPISession?
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        guard let host = request.url?.host else {
+            completionHandler(nil)
+            return
+        }
+        let allowed = host == "cursor.com"
+            || host == "www.cursor.com"
+            || host == "api2.cursor.sh"
+            || host.hasSuffix(".cursor.com")
+            || host.hasSuffix(".cursor.sh")
+        completionHandler(allowed ? request : nil)
+    }
+}
+
 enum CursorSessionQuota {
     private static let databasePath = NSHomeDirectory() + "/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
     private static let preferredKeys = [
@@ -146,10 +261,10 @@ enum CursorSessionQuota {
     ]
 
     @MainActor
-    static func read(into quotas: Quotas) async {
+    static func read(into quotas: Quotas, allowKeychainPrompt: Bool) async {
         quotas.set("Cursor", nil)
         quotas.set("Grok Bot", nil)
-        guard let token = sessionToken() else { return }
+        guard let token = sessionToken(allowKeychainPrompt: allowKeychainPrompt) else { return }
 
         async let cursorData = firstSuccess(cursorRequests(token))
         async let grokData = firstSuccess(grokRequests(token))
@@ -162,26 +277,19 @@ enum CursorSessionQuota {
         }
     }
 
-    private static func sessionToken() -> String? {
+    private static func sessionToken(allowKeychainPrompt: Bool) -> String? {
         guard FileManager.default.fileExists(atPath: databasePath) else { return nil }
         // Read only specific known keys. The token stays in memory for the request and is never logged.
         let keyList = preferredKeys.map { "'\($0)'" }.joined(separator: ", ")
         let sql = "SELECT key, value FROM ItemTable WHERE key IN (\(keyList));"
         let rows = sqlite(sql)
         for key in preferredKeys {
-            if let value = rows[key], !value.isEmpty {
-                return cleanedToken(value)
+            if let value = rows[key], !value.isEmpty,
+               let token = CursorSafeStorage.openToken(value, allowPrompt: allowKeychainPrompt) {
+                return token
             }
         }
         return nil
-    }
-
-    private static func cleanedToken(_ raw: String) -> String {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.hasPrefix("\"") && trimmed.hasSuffix("\"") && trimmed.count >= 2 {
-            return String(trimmed.dropFirst().dropLast())
-        }
-        return trimmed
     }
 
     private static func sqlite(_ sql: String) -> [String: String] {
@@ -243,19 +351,30 @@ enum CursorSessionQuota {
             request.httpMethod = method
             request.setValue("application/json", forHTTPHeaderField: "Accept")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("https://cursor.com", forHTTPHeaderField: "Origin")
+            request.setValue("https://cursor.com/dashboard", forHTTPHeaderField: "Referer")
             request.httpBody = body
             return request
         }
+        var requests: [URLRequest] = []
         var bearer = base()
         bearer.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        requests.append(bearer)
         var cookie = base()
         cookie.setValue("WorkosCursorSessionToken=\(token)", forHTTPHeaderField: "Cookie")
-        return [bearer, cookie]
+        requests.append(cookie)
+        if token.contains("::") {
+            var encoded = base()
+            let value = token.replacingOccurrences(of: "::", with: "%3A%3A")
+            encoded.setValue("WorkosCursorSessionToken=\(value)", forHTTPHeaderField: "Cookie")
+            requests.append(encoded)
+        }
+        return requests
     }
 
     private static func firstSuccess(_ requests: [URLRequest]) async -> Data? {
         for request in requests {
-            if let (data, response) = try? await URLSession.shared.data(for: request),
+            if let (data, response) = try? await CursorAPISession.shared.data(for: request),
                let http = response as? HTTPURLResponse,
                http.statusCode == 200,
                !data.isEmpty {

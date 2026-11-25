@@ -10,13 +10,15 @@ Download `QuotaBar-universal.zip` from the latest GitHub Actions build, unzip, a
 
 After launch, a `◉` icon appears in the menu bar, and three quota strips should appear on the Touch Bar. If the strips are hidden, click the `◉` in the Control Strip, or choose Show on Touch Bar from the menu. Quota numbers also appear in the menu-bar panel.
 
-Accessibility is not required. The first run may ask for network access.
+Accessibility is not required. The first run may ask for network access. If Cursor or Grok Bot stay unavailable, macOS may also ask once for access to the existing Keychain item “Cursor Safe Storage”; choose Always Allow so later refreshes can run quietly.
 
 ## What it reads
 
 Codex talks only to the already-installed Codex CLI (`codex app-server`, then `account/rateLimits/read`). It does not scrape ChatGPT cookies. If Codex is signed out or missing, that strip shows unavailable.
 
 Cursor and Grok Bot have no official personal usage API. The app reads the already-logged-in Cursor session on this Mac and calls the same unofficial dashboard endpoints the Cursor app uses. Those endpoints can change or start failing; when they do, the strip shows unavailable. Session credentials stay on the machine and are never shown. The app never opens a browser login.
+
+Newer Cursor builds store that session encrypted (`cursor-safe-storage`). The app opens the existing Keychain item “Cursor Safe Storage” (account “Cursor Key”) to read it, then discards the decrypted value after the request. It does not read the refresh token, does not write to Cursor’s database, and does not create a Keychain item of its own. If Keychain access is denied, those two strips stay unavailable.
 
 ## Touch Bar
 
