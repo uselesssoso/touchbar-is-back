@@ -17,6 +17,6 @@ jobs:
           DEVELOPER_ID_APPLICATION: ${{ secrets.DEVELOPER_ID_APPLICATION }}
       - uses: actions/upload-artifact@v4
         with:
-          name: QuotaBar-universal
-          path: QuotaBar-universal.zip
+          name: TouchBack-universal
+          path: TouchBack-universal.zip
           if-no-files-found: error
