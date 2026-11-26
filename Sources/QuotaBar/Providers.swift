@@ -33,7 +33,7 @@ enum CodexQuota {
         }
 
         let request = """
-        {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"quotabar","version":"0.1.2"},"capabilities":{}}}
+        {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"quotabar","version":"0.1.3"},"capabilities":{}}}
         {"jsonrpc":"2.0","method":"initialized","params":{}}
         {"jsonrpc":"2.0","id":2,"method":"account/rateLimits/read","params":{}}
 
