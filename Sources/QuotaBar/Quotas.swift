@@ -4,7 +4,19 @@ import Combine
 struct Meter: Identifiable, Equatable {
     let id: String
     var used: Double?
-    var reset: String?
+    var resetAt: Date?
+    var resetStyle: ResetStyle
+
+    init(id: String, used: Double? = nil, resetAt: Date? = nil, resetStyle: ResetStyle? = nil) {
+        self.id = id
+        self.used = used
+        self.resetAt = resetAt
+        self.resetStyle = resetStyle ?? ResetStyle.forProvider(id)
+    }
+
+    var reset: String? {
+        ResetFormat.string(for: resetAt, style: resetStyle)
+    }
 }
 
 @MainActor
@@ -17,12 +29,18 @@ final class Quotas: ObservableObject {
 
     var onChange: (() -> Void)?
 
-    func set(_ id: String, _ value: Double?, _ reset: String? = nil) {
+    func set(_ id: String, _ value: Double?, resetAt: Date? = nil, style: ResetStyle? = nil) {
         guard let index = meters.firstIndex(where: { $0.id == id }) else { return }
         let clamped = value.map { min(1, max(0, $0)) }
-        if meters[index].used == clamped && meters[index].reset == reset { return }
+        let resolvedStyle = style ?? ResetStyle.forProvider(id)
+        if meters[index].used == clamped
+            && meters[index].resetAt == resetAt
+            && meters[index].resetStyle == resolvedStyle {
+            return
+        }
         meters[index].used = clamped
-        meters[index].reset = reset
+        meters[index].resetAt = resetAt
+        meters[index].resetStyle = resolvedStyle
         onChange?()
     }
 
