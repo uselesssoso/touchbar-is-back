@@ -20,6 +20,13 @@ fi
 test -x "$BIN_ARM" && test -x "$BIN_X86"
 
 mkdir -p TouchBack.app/Contents/MacOS TouchBack.app/Contents/Resources
+
+ICON_SRC="$ROOT/assets/AppIcon.icns"
+if [[ ! -f "$ICON_SRC" ]]; then
+  echo "missing app icon: $ICON_SRC" >&2
+  exit 1
+fi
+cp "$ICON_SRC" TouchBack.app/Contents/Resources/AppIcon.icns
 lipo -create "$BIN_ARM" "$BIN_X86" -output TouchBack.app/Contents/MacOS/QuotaBar
 chmod +x TouchBack.app/Contents/MacOS/QuotaBar
 
@@ -42,10 +49,12 @@ cat > TouchBack.app/Contents/Info.plist <<'PLIST'
   <string>TouchBack</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundleShortVersionString</key>
   <string>0.1.4</string>
   <key>CFBundleVersion</key>
-  <string>5</string>
+  <string>6</string>
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
   <key>LSUIElement</key>
