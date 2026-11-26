@@ -2,7 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-rm -rf .build-arm64 .build-x86_64 QuotaBar.app QuotaBar-universal.zip
+rm -rf .build-arm64 .build-x86_64 QuotaBar.app TouchBack.app QuotaBar-universal.zip TouchBack-universal.zip
 
 for arch in arm64 x86_64; do
   swift build -c release --arch "$arch" --scratch-path ".build-$arch"
@@ -19,11 +19,11 @@ if [[ ! -x "$BIN_X86" ]]; then
 fi
 test -x "$BIN_ARM" && test -x "$BIN_X86"
 
-mkdir -p QuotaBar.app/Contents/MacOS QuotaBar.app/Contents/Resources
-lipo -create "$BIN_ARM" "$BIN_X86" -output QuotaBar.app/Contents/MacOS/QuotaBar
-chmod +x QuotaBar.app/Contents/MacOS/QuotaBar
+mkdir -p TouchBack.app/Contents/MacOS TouchBack.app/Contents/Resources
+lipo -create "$BIN_ARM" "$BIN_X86" -output TouchBack.app/Contents/MacOS/QuotaBar
+chmod +x TouchBack.app/Contents/MacOS/QuotaBar
 
-cat > QuotaBar.app/Contents/Info.plist <<'PLIST'
+cat > TouchBack.app/Contents/Info.plist <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -36,14 +36,16 @@ cat > QuotaBar.app/Contents/Info.plist <<'PLIST'
   <string>com.uselesssoso.quotabar</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
+  <key>CFBundleDisplayName</key>
+  <string>TouchBack</string>
   <key>CFBundleName</key>
-  <string>QuotaBar</string>
+  <string>TouchBack</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.1.2</string>
+  <string>0.1.3</string>
   <key>CFBundleVersion</key>
-  <string>3</string>
+  <string>4</string>
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
   <key>LSUIElement</key>
@@ -57,11 +59,11 @@ cat > QuotaBar.app/Contents/Info.plist <<'PLIST'
 PLIST
 
 if [[ -n "${DEVELOPER_ID_APPLICATION:-}" ]]; then
-  codesign --force --deep --options runtime --sign "$DEVELOPER_ID_APPLICATION" QuotaBar.app
+  codesign --force --deep --options runtime --sign "$DEVELOPER_ID_APPLICATION" TouchBack.app
 else
-  codesign --force --deep --sign - QuotaBar.app
+  codesign --force --deep --sign - TouchBack.app
 fi
 
-/usr/bin/ditto -c -k --sequesterRsrc --keepParent QuotaBar.app QuotaBar-universal.zip
-file QuotaBar.app/Contents/MacOS/QuotaBar
-lipo -info QuotaBar.app/Contents/MacOS/QuotaBar
+/usr/bin/ditto -c -k --sequesterRsrc --keepParent TouchBack.app TouchBack-universal.zip
+file TouchBack.app/Contents/MacOS/QuotaBar
+lipo -info TouchBack.app/Contents/MacOS/QuotaBar
