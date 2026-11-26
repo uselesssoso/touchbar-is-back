@@ -2,11 +2,11 @@
 
 Professionally useless. Builds AI tools anyway.
 
-A small menu-bar app that puts leftover Codex, Cursor, and Grok Bot quota on the Touch Bar as three quiet meters. It is not a general Touch Bar customizer.
+TouchBack is a small menu-bar app that puts leftover Codex, Cursor, and Grok Bot quota on the Touch Bar as three quiet meters. It is not a general Touch Bar customizer.
 
 ## Install
 
-Download `QuotaBar-universal.zip` from the latest GitHub Actions build, unzip, and move `QuotaBar.app` to Applications. The first build is ad-hoc signed; macOS may ask you to open it from Finder via Open.
+Download `TouchBack-universal.zip` from the latest GitHub Actions build, unzip, and move `TouchBack.app` to Applications. The first build is ad-hoc signed; macOS may ask you to open it from Finder via Open.
 
 After launch, a `◉` icon appears in the menu bar, and three quota strips should appear on the Touch Bar. If the strips are hidden, click the `◉` in the Control Strip, or choose Show on Touch Bar from the menu. Quota numbers also appear in the menu-bar panel.
 
@@ -26,6 +26,6 @@ A menu-bar extra is almost never the frontmost app, so the public Touch Bar API 
 
 ## Build a universal app
 
-On a Mac with Xcode (or on GitHub Actions), run `./scripts/build-app.sh`. It builds arm64 and x86_64 slices and combines them with `lipo`. The workflow on `macos-15-intel` uploads `QuotaBar-universal.zip`. Set a `DEVELOPER_ID_APPLICATION` repository secret to sign with Developer ID; otherwise CI applies an ad-hoc signature. Minimum macOS is 13.0. The app is meant to run on Intel Macs still on macOS 14, including 14.6.1.
+On a Mac with Xcode (or on GitHub Actions), run `./scripts/build-app.sh`. It builds arm64 and x86_64 slices and combines them with `lipo`. The workflow on `macos-15-intel` uploads `TouchBack-universal.zip`. Set a `DEVELOPER_ID_APPLICATION` repository secret to sign with Developer ID; otherwise CI applies an ad-hoc signature. Minimum macOS is 13.0. The app is meant to run on Intel Macs still on macOS 14, including 14.6.1.
 
 MIT licensed.
