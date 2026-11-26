@@ -33,7 +33,7 @@ enum CodexQuota {
         }
 
         let request = """
-        {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"quotabar","version":"0.1.3"},"capabilities":{}}}
+        {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"quotabar","version":"0.1.4"},"capabilities":{}}}
         {"jsonrpc":"2.0","method":"initialized","params":{}}
         {"jsonrpc":"2.0","id":2,"method":"account/rateLimits/read","params":{}}
 
@@ -63,11 +63,11 @@ enum CodexQuota {
             ?? limits
 
         let used = usedFraction(from: primary)
-        let reset = resetLabel(from: primary)
+        let resetAt = resetDate(from: primary)
         if used == nil {
             quotas.set("Codex", nil)
         } else {
-            quotas.set("Codex", used, reset)
+            quotas.set("Codex", used, resetAt: resetAt, style: .hours)
         }
     }
 
@@ -101,17 +101,11 @@ enum CodexQuota {
         return nil
     }
 
-    private static func resetLabel(from fields: [String: Any]) -> String? {
-        if let text = fields["resetsAt"] as? String, !text.isEmpty { return text }
-        if let text = fields["resetAt"] as? String, !text.isEmpty { return text }
-        if let seconds = number(fields, "resetsAt") ?? number(fields, "resetAt") ?? number(fields, "nextResetTimestampUtc") {
-            let date: Date
-            if seconds > 10_000_000_000 {
-                date = Date(timeIntervalSince1970: seconds / 1000)
-            } else {
-                date = Date(timeIntervalSince1970: seconds)
+    private static func resetDate(from fields: [String: Any]) -> Date? {
+        for key in ["resetsAt", "resetAt", "nextResetTimestampUtc"] {
+            if let date = ResetFormat.date(from: fields[key]) {
+                return date
             }
-            return RelativeDateTimeFormatter().localizedString(for: date, relativeTo: Date())
         }
         return nil
     }
@@ -400,8 +394,9 @@ enum CursorSessionQuota {
     private static func apply(_ json: [String: Any], to id: String, quotas: Quotas) {
         let nested = (json["usage"] as? [String: Any]) ?? json
         let used = usedFraction(from: nested) ?? usedFraction(from: json)
-        let reset = resetLabel(from: nested) ?? resetLabel(from: json)
-        quotas.set(id, used, reset)
+        let resetAt = resetDate(from: nested) ?? resetDate(from: json)
+        let style: ResetStyle = id == "Grok Bot" ? .days : .absolute
+        quotas.set(id, used, resetAt: resetAt, style: style)
     }
 
     private static func usedFraction(from fields: [String: Any]) -> Double? {
@@ -421,31 +416,13 @@ enum CursorSessionQuota {
         return nil
     }
 
-    private static func resetLabel(from fields: [String: Any]) -> String? {
+    private static func resetDate(from fields: [String: Any]) -> Date? {
         for key in ["resetAt", "resetsAt", "nextResetTimestampUtc", "reset_at", "billingCycleEnd"] {
-            if let date = dateValue(fields[key]) {
-                return RelativeDateTimeFormatter().localizedString(for: date, relativeTo: Date())
+            if let date = ResetFormat.date(from: fields[key]) {
+                return date
             }
-            if let text = fields[key] as? String, !text.isEmpty { return text }
         }
         return nil
-    }
-
-    private static func dateValue(_ value: Any?) -> Date? {
-        if let seconds = (value as? NSNumber)?.doubleValue {
-            let epoch = seconds > 10_000_000_000 ? seconds / 1000 : seconds
-            return Date(timeIntervalSince1970: epoch)
-        }
-        guard let text = value as? String, !text.isEmpty else { return nil }
-        if let seconds = Double(text) {
-            let epoch = seconds > 10_000_000_000 ? seconds / 1000 : seconds
-            return Date(timeIntervalSince1970: epoch)
-        }
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = iso.date(from: text) { return date }
-        iso.formatOptions = [.withInternetDateTime]
-        return iso.date(from: text)
     }
 
     private static func number(_ fields: [String: Any], _ key: String) -> Double? {

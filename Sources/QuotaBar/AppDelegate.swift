@@ -159,6 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSTouchBarDelegate {
 final class QuotaStripView: NSView {
     private let titleLabel = NSTextField(labelWithString: "")
     private let valueLabel = NSTextField(labelWithString: "n/a")
+    private let resetLabel = NSTextField(labelWithString: "")
     private let track = NSView()
     private let fill = NSView()
 
@@ -168,24 +169,28 @@ final class QuotaStripView: NSView {
         layer?.cornerRadius = 6
         layer?.backgroundColor = NSColor.black.withAlphaComponent(0.35).cgColor
 
-        for label in [titleLabel, valueLabel] {
-            label.font = NSFont.systemFont(ofSize: 10, weight: .medium)
-            label.textColor = .white
+        titleLabel.font = NSFont.systemFont(ofSize: 9, weight: .medium)
+        titleLabel.textColor = .white
+        valueLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular)
+        valueLabel.textColor = .white
+        valueLabel.alignment = .right
+        resetLabel.font = NSFont.systemFont(ofSize: 8, weight: .regular)
+        resetLabel.textColor = NSColor.white.withAlphaComponent(0.7)
+
+        for label in [titleLabel, valueLabel, resetLabel] {
             label.isBezeled = false
             label.drawsBackground = false
             label.isEditable = false
             label.lineBreakMode = .byTruncatingTail
             addSubview(label)
         }
-        valueLabel.alignment = .right
-        valueLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .regular)
 
         track.wantsLayer = true
         track.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.18).cgColor
-        track.layer?.cornerRadius = 1.5
+        track.layer?.cornerRadius = 1.15
         fill.wantsLayer = true
         fill.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.85).cgColor
-        fill.layer?.cornerRadius = 1.5
+        fill.layer?.cornerRadius = 1.15
         addSubview(track)
         track.addSubview(fill)
     }
@@ -200,10 +205,12 @@ final class QuotaStripView: NSView {
         super.layout()
         let inset: CGFloat = 8
         let width = bounds.width
-        titleLabel.frame = NSRect(x: inset, y: 12, width: width * 0.55, height: 14)
-        valueLabel.frame = NSRect(x: width * 0.5, y: 12, width: width * 0.5 - inset, height: 14)
-        track.frame = NSRect(x: inset, y: 6, width: width - inset * 2, height: 3)
-        fill.frame = NSRect(x: 0, y: 0, width: max(0, track.bounds.width * fraction), height: 3)
+        titleLabel.frame = NSRect(x: inset, y: 17, width: width * 0.55, height: 11)
+        valueLabel.frame = NSRect(x: width * 0.5, y: 17, width: width * 0.5 - inset, height: 11)
+        resetLabel.frame = NSRect(x: inset, y: 6, width: width - inset * 2, height: 10)
+        let barHeight: CGFloat = 2.3
+        track.frame = NSRect(x: inset, y: 2.5, width: width - inset * 2, height: barHeight)
+        fill.frame = NSRect(x: 0, y: 0, width: max(0, track.bounds.width * fraction), height: barHeight)
     }
 
     func update(_ meter: Meter) {
@@ -215,6 +222,7 @@ final class QuotaStripView: NSView {
             valueLabel.stringValue = "n/a"
             fraction = 0
         }
+        resetLabel.stringValue = meter.reset ?? ""
         needsLayout = true
     }
 }
