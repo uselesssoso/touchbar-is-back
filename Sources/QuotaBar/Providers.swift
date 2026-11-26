@@ -33,7 +33,7 @@ enum CodexQuota {
         }
 
         let request = """
-        {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"quotabar","version":"0.1.1"},"capabilities":{}}}
+        {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"quotabar","version":"0.1.2"},"capabilities":{}}}
         {"jsonrpc":"2.0","method":"initialized","params":{}}
         {"jsonrpc":"2.0","id":2,"method":"account/rateLimits/read","params":{}}
 
@@ -321,20 +321,26 @@ enum CursorSessionQuota {
 
     private static func cursorRequests(_ token: String) -> [URLRequest] {
         var requests: [URLRequest] = []
+        // Bearer on api2 succeeds. The dashboard usage-summary route returns 401 for a JWT.
+        if let url = URL(string: "https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage") {
+            requests.append(contentsOf: authenticated(url, token: token, method: "POST", body: Data("{}".utf8)))
+        }
         if let url = URL(string: "https://cursor.com/api/usage-summary") {
             requests.append(contentsOf: authenticated(url, token: token, method: "GET"))
         }
         if let url = URL(string: "https://www.cursor.com/api/usage-summary") {
             requests.append(contentsOf: authenticated(url, token: token, method: "GET"))
         }
-        if let url = URL(string: "https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage") {
-            requests.append(contentsOf: authenticated(url, token: token, method: "POST", body: Data("{}".utf8)))
-        }
         return requests
     }
 
     private static func grokRequests(_ token: String) -> [URLRequest] {
         var requests: [URLRequest] = []
+        // Dashboard get-sand-usage-status redirects to WorkOS for a JWT. The api2
+        // DashboardService method accepts Bearer and returns usagePercent.
+        if let url = URL(string: "https://api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus") {
+            requests.append(contentsOf: authenticated(url, token: token, method: "POST", body: Data("{}".utf8)))
+        }
         if let url = URL(string: "https://cursor.com/api/dashboard/get-sand-usage-status") {
             requests.append(contentsOf: authenticated(url, token: token, method: "POST", body: Data("{}".utf8)))
             requests.append(contentsOf: authenticated(url, token: token, method: "GET"))
@@ -399,29 +405,52 @@ enum CursorSessionQuota {
     }
 
     private static func usedFraction(from fields: [String: Any]) -> Double? {
+        if let plan = fields["planUsage"] as? [String: Any], let nested = usedFraction(from: plan) {
+            return nested
+        }
         if let remaining = number(fields, "remainingPercent") {
             return 1 - remaining / 100
         }
-        if let used = number(fields, "usedPercent") ?? number(fields, "usagePercent") {
+        if let used = number(fields, "usedPercent")
+            ?? number(fields, "usagePercent")
+            ?? number(fields, "totalPercentUsed")
+            ?? number(fields, "autoPercentUsed")
+            ?? number(fields, "percentUsed") {
             return used > 1 ? used / 100 : used
         }
         return nil
     }
 
     private static func resetLabel(from fields: [String: Any]) -> String? {
-        for key in ["resetAt", "resetsAt", "nextResetTimestampUtc", "reset_at"] {
-            if let text = fields[key] as? String, !text.isEmpty { return text }
-            if let seconds = number(fields, key) {
-                let date = seconds > 10_000_000_000
-                    ? Date(timeIntervalSince1970: seconds / 1000)
-                    : Date(timeIntervalSince1970: seconds)
+        for key in ["resetAt", "resetsAt", "nextResetTimestampUtc", "reset_at", "billingCycleEnd"] {
+            if let date = dateValue(fields[key]) {
                 return RelativeDateTimeFormatter().localizedString(for: date, relativeTo: Date())
             }
+            if let text = fields[key] as? String, !text.isEmpty { return text }
         }
         return nil
     }
 
+    private static func dateValue(_ value: Any?) -> Date? {
+        if let seconds = (value as? NSNumber)?.doubleValue {
+            let epoch = seconds > 10_000_000_000 ? seconds / 1000 : seconds
+            return Date(timeIntervalSince1970: epoch)
+        }
+        guard let text = value as? String, !text.isEmpty else { return nil }
+        if let seconds = Double(text) {
+            let epoch = seconds > 10_000_000_000 ? seconds / 1000 : seconds
+            return Date(timeIntervalSince1970: epoch)
+        }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso.date(from: text) { return date }
+        iso.formatOptions = [.withInternetDateTime]
+        return iso.date(from: text)
+    }
+
     private static func number(_ fields: [String: Any], _ key: String) -> Double? {
-        (fields[key] as? NSNumber)?.doubleValue
+        if let n = fields[key] as? NSNumber { return n.doubleValue }
+        if let s = fields[key] as? String, let n = Double(s) { return n }
+        return nil
     }
 }
